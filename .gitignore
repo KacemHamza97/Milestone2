@@ -131,3 +131,4 @@ dmypy.json
 #ide files
 .idea
 .DS_Store
+test_selection_local.py
