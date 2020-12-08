@@ -51,17 +51,13 @@ def rule_break_up_selections(ra):
         elif isinstance(ra.inputs[1], radb.ast.Select):
             return radb.ast.Cross(ra.inputs[0], break_select(ra.inputs[1]))
 
-# L = rule_break_up_selections(ra)
-# print(L)
-# print('yup2')
+def rule_push_down_selections(ra, dd):
+    pass
 
-# def rule_push_down_selections(ra, dd):
-#     pass
-#
-#
-# def rule_merge_selections(ra):
-#     pass
-#
-#
-# def rule_introduce_joins(ra):
-#     pass
+
+def rule_merge_selections(ra):
+    pass
+
+
+def rule_introduce_joins(ra):
+    pass
