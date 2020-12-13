@@ -9,11 +9,11 @@ dd = {}
 dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
-dd["Frequents"] = {}
-stmt = """\select_{Eats1.pizza = Eats2.pizza} \select_{Eats1.name = 'Amy'} (\\rename_{Eats1: *}(Eats)
-                       \cross \\rename_{Eats2: *}(Eats));"""
-stmt_result = """\select_{Eats1.pizza = Eats2.pizza} ((\select_{Eats1.name = 'Amy'} \\rename_{Eats1: *}(Eats))
-                       \cross \\rename_{Eats2: *}(Eats));"""
+
+stmt = """\select_{Eats.pizza = Serves.pizza} \select_{Person.name = Eats.name}
+                       ((Person \cross Eats) \cross Serves);"""
+stmt_result = """\select_{Eats.pizza = Serves.pizza}( \select_{Person.name = Eats.name}
+                       (Person \cross Eats) \cross Serves );"""
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
@@ -96,8 +96,6 @@ def split_selection_cross(ra):
 
 
 def push_down_selections(ra, dd):
-    dd["frequent"] = {}
-
     list_selection_cond, cross_list = split_selection_cross(ra)
     remaining_selection_list = []
     cross_res = cross_list[:]
@@ -134,6 +132,7 @@ def push_down_selections(ra, dd):
 
 
 def rule_push_down_selections(ra, dd):
+    dd["Frequents"] = {}
     if input_one_table(ra):
         return ra
     elif isinstance(ra, radb.ast.Project):
