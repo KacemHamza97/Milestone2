@@ -17,9 +17,9 @@ stmt_result = """\select_{Eats.pizza = Serves.pizza}( \select_{Person.name = Eat
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
-print(ra)
-print(ra_result)
-print('yup')
+# print(ra)
+# print(ra_result)
+# print('yup')
 
 
 def input_one_table(ra):
@@ -94,7 +94,6 @@ def split_selection_cross(ra):
 
     return list_selection_cond, cross_list
 
-
 def push_down_selections(ra, dd):
     list_selection_cond, cross_list = split_selection_cross(ra)
     remaining_selection_list = []
@@ -125,7 +124,6 @@ def push_down_selections(ra, dd):
     if len(remaining_selection_list) == 0:
         return c_res
     s_res = radb.ast.Select(remaining_selection_list[-1], c_res)
-    print('here')
     for s in range(len(remaining_selection_list) - 1):
         s_res = radb.ast.Select(remaining_selection_list[s], s_res)
     return s_res
@@ -155,8 +153,8 @@ def rule_introduce_joins(ra):
 # print(s)
 # print(c)
 
-s = rule_push_down_selections(ra, dd)
-print(s)
+# s = rule_push_down_selections(ra, dd)
+# print(s)
 # print(cross)
 # print(type(cross))
 # print('yup')
