@@ -9,8 +9,8 @@ dd = {}
 dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
-stmt = "\select_{age = 16} ((Person \cross Eats) \cross Serves);"
-stmt_result = "(\select_{age = 16}(Person) \cross Eats \cross Serves);"
+stmt = """\select_{Eats.pizza = Serves.pizza} \select_{Person.name = Eats.name} ((Person \cross Eats) \cross Serves);"""
+stmt_result = """\select_{Eats.pizza = Serves.pizza}( \select_{Person.name = Eats.name} (Person \cross Eats) \cross Serves );"""
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
@@ -68,6 +68,9 @@ def clean_query(sql_query):
 def cross_tolist(cross_object):
     cross_object_list = [cross_object.inputs[1]]
     test_cross = cross_object.inputs[0]
+    if not isinstance(test_cross, radb.ast.Cross):
+        cross_object_list.append(test_cross)
+        return cross_object_list
     while (isinstance(test_cross.inputs[0], radb.ast.Cross)):
         cross_object_list.append(test_cross.inputs[1])
         test_cross = test_cross.inputs[0]
@@ -107,16 +110,18 @@ def rule_push_down_selections(ra, dd):
                     cross_res[i] = radb.ast.Select(cond=s, input=c)
     # cross_res.reverse()
     n = len(cross_res)
-    c_res = cross_res[0]
-    for c in range(1, n):
+    c_res = cross_res[1]
+    for c in range(2, n):
         c_res = radb.ast.Cross(c_res, cross_res[c])
+
+    c_res = radb.ast.Cross(c_res, cross_res[0])
 
     if len(remaining_selection_list) == 0:
         return c_res
-    s_res = remaining_selection_list[-1]
+    s_res = radb.ast.Select(remaining_selection_list[-1],c_res)
     print('here')
-    for s in remaining_selection_list:
-        s_res = radb.ast.Select(s_res, c_res)
+    for s in range(len(remaining_selection_list)-1):
+        s_res = radb.ast.Select(remaining_selection_list[s], s_res)
     return s_res
 
 
