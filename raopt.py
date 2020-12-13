@@ -1,19 +1,26 @@
 from pprint import pprint
+import re
 
 import radb
 import radb.ast
 import radb.parse
 
-dd = {"Person": {"name": "string", "age": "integer", "gender": "string"}, "Eats": {"name": "string", "pizza": "string"}}
-stmt = "\select_{E.pizza = 'mushroom' and E.price < 10} \\rename_{E: *}(Eats);"
-stmt_result = "\select_{E.pizza = 'mushroom'} \select_{E.price < 10} \\rename_{E: *}(Eats);"
+dd = {}
+dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
+dd["Eats"] = {"name": "string", "pizza": "string"}
+dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
+stmt = "\select_{age = 16} ((Person \cross Eats) \cross Serves);"
+stmt_result = "(\select_{age = 16}(Person) \cross Eats \cross Serves);"
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
+print(ra)
+print(ra_result)
+print('yup')
 
-# print(ra)
-# print(ra_result)
-# print('yup1')
+
+def input_one_table(ra):
+    return str(ra).count('\\cross') == 0
 
 
 def break_select(ra):
@@ -51,8 +58,66 @@ def rule_break_up_selections(ra):
         elif isinstance(ra.inputs[1], radb.ast.Select):
             return radb.ast.Cross(ra.inputs[0], break_select(ra.inputs[1]))
 
+
+def clean_query(sql_query):
+    """removes all successive whitespaces >2 and replace them with one whitespace.
+        also it removes the white spaces at the start and at the end of the sql_query"""
+    return re.sub("\s\s+", " ", sql_query).strip()
+
+
+def cross_tolist(cross_object):
+    cross_object_list = [cross_object.inputs[1]]
+    test_cross = cross_object.inputs[0]
+    while (isinstance(test_cross.inputs[0], radb.ast.Cross)):
+        cross_object_list.append(test_cross.inputs[1])
+        test_cross = test_cross.inputs[0]
+    cross_object_list.extend(test_cross.inputs)
+    return cross_object_list
+
+
+def split_selection_cross(ra):
+    cross_list = []
+    list_selection_cond = [ra.cond]
+    test_cross = ra.inputs[0]
+    while (isinstance(test_cross, radb.ast.Select)):
+        list_selection_cond.append(test_cross.cond)
+        test_cross = test_cross.inputs[0]
+
+    if isinstance(test_cross, radb.ast.Cross):
+        cross_list = cross_tolist(test_cross)
+
+    return list_selection_cond, cross_list
+
+
 def rule_push_down_selections(ra, dd):
-    pass
+    if input_one_table(ra):
+        return ra
+
+    list_selection_cond, cross_list = split_selection_cross(ra)
+    remaining_selection_list = []
+    cross_res = cross_list[:]
+    for s in list_selection_cond:
+        for i, c in enumerate(cross_list):
+            if isinstance(s.inputs[0], radb.ast.AttrRef) and isinstance(s.inputs[1], radb.ast.AttrRef):
+                remaining_selection_list.append(s)
+                break
+            else:
+                a = dd[c.rel].get(s.inputs[0].name, False)
+                if a:
+                    cross_res[i] = radb.ast.Select(cond=s, input=c)
+    # cross_res.reverse()
+    n = len(cross_res)
+    c_res = cross_res[-1]
+    for c in range(0,n-1):
+        c_res = radb.ast.Cross(c_res, cross_res[c])
+
+    if len(remaining_selection_list) == 0:
+        return c_res
+    s_res = remaining_selection_list[-1]
+    print('here')
+    for s in remaining_selection_list:
+        s_res = radb.ast.Select(s_res, c_res)
+    return s_res
 
 
 def rule_merge_selections(ra):
@@ -61,3 +126,16 @@ def rule_merge_selections(ra):
 
 def rule_introduce_joins(ra):
     pass
+
+
+# cross_object = radb.parse.one_statement_from_string("(((Person \cross Eats) \cross Serves) \cross frequences);")
+# L = cross_tolist(cross_object)
+# s, c = split_selection_cross(ra)
+# print(s)
+# print(c)
+s = rule_push_down_selections(ra, dd)
+print("result")
+print(s)
+# print(cross)
+# print(type(cross))
+# print('yup')
