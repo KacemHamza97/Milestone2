@@ -107,8 +107,8 @@ def rule_push_down_selections(ra, dd):
                     cross_res[i] = radb.ast.Select(cond=s, input=c)
     # cross_res.reverse()
     n = len(cross_res)
-    c_res = cross_res[-1]
-    for c in range(0,n-1):
+    c_res = cross_res[0]
+    for c in range(1, n):
         c_res = radb.ast.Cross(c_res, cross_res[c])
 
     if len(remaining_selection_list) == 0:
