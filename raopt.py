@@ -138,7 +138,7 @@ def rule_push_down_selections(ra, dd):
     elif isinstance(ra, radb.ast.Project):
         return radb.ast.Project(ra.attrs, push_down_selections(ra.inputs[0], dd))
     else:
-        return push_down_selections(ra,dd)
+        return push_down_selections(ra, dd)
 
 
 def rule_merge_selections(ra):
