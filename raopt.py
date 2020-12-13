@@ -9,8 +9,11 @@ dd = {}
 dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
-stmt = """\select_{Eats.pizza = Serves.pizza} \select_{Person.name = Eats.name} ((Person \cross Eats) \cross Serves);"""
-stmt_result = """\select_{Eats.pizza = Serves.pizza}( \select_{Person.name = Eats.name} (Person \cross Eats) \cross Serves );"""
+dd["Frequents"] = {}
+stmt = """\select_{Eats1.pizza = Eats2.pizza} \select_{Eats1.name = 'Amy'} (\\rename_{Eats1: *}(Eats)
+                       \cross \\rename_{Eats2: *}(Eats));"""
+stmt_result = """\select_{Eats1.pizza = Eats2.pizza} ((\select_{Eats1.name = 'Amy'} \\rename_{Eats1: *}(Eats))
+                       \cross \\rename_{Eats2: *}(Eats));"""
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
@@ -92,9 +95,8 @@ def split_selection_cross(ra):
     return list_selection_cond, cross_list
 
 
-def rule_push_down_selections(ra, dd):
-    if input_one_table(ra):
-        return ra
+def push_down_selections(ra, dd):
+    dd["frequent"] = {}
 
     list_selection_cond, cross_list = split_selection_cross(ra)
     remaining_selection_list = []
@@ -105,10 +107,16 @@ def rule_push_down_selections(ra, dd):
                 remaining_selection_list.append(s)
                 break
             else:
-                a = dd[c.rel].get(s.inputs[0].name, False)
+                if isinstance(c, radb.ast.Rename):
+                    if s.inputs[0].rel == c.relname:
+                        a = dd[c.inputs[0].rel].get(s.inputs[0].name, False)
+                    else:
+                        continue
+                else:
+                    a = dd[c.rel].get(s.inputs[0].name, False)
+
                 if a:
                     cross_res[i] = radb.ast.Select(cond=s, input=c)
-    # cross_res.reverse()
     n = len(cross_res)
     c_res = cross_res[1]
     for c in range(2, n):
@@ -118,11 +126,20 @@ def rule_push_down_selections(ra, dd):
 
     if len(remaining_selection_list) == 0:
         return c_res
-    s_res = radb.ast.Select(remaining_selection_list[-1],c_res)
+    s_res = radb.ast.Select(remaining_selection_list[-1], c_res)
     print('here')
-    for s in range(len(remaining_selection_list)-1):
+    for s in range(len(remaining_selection_list) - 1):
         s_res = radb.ast.Select(remaining_selection_list[s], s_res)
     return s_res
+
+
+def rule_push_down_selections(ra, dd):
+    if input_one_table(ra):
+        return ra
+    elif isinstance(ra, radb.ast.Project):
+        return radb.ast.Project(ra.attrs, push_down_selections(ra.inputs[0], dd))
+    else:
+        return push_down_selections(ra,dd)
 
 
 def rule_merge_selections(ra):
@@ -138,8 +155,8 @@ def rule_introduce_joins(ra):
 # s, c = split_selection_cross(ra)
 # print(s)
 # print(c)
+
 s = rule_push_down_selections(ra, dd)
-print("result")
 print(s)
 # print(cross)
 # print(type(cross))
