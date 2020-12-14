@@ -206,8 +206,8 @@ def rule_merge_selections(ra):
             return radb.ast.Project(attrs=ra.attrs, input=rule_merge_selections_cross(ra.inputs[0]))
 
 
-# def rule_introduce_joins(ra):
-#     pass
+def rule_introduce_joins(ra):
+    pass
 #
 # print('result')
 # merge = rule_merge_selections(ra)
