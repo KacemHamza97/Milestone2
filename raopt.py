@@ -10,20 +10,24 @@ dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
 
-stmt = """\select_{Eats.pizza = Serves.pizza} \select_{Person.name = Eats.name}
-                       ((Person \cross Eats) \cross Serves);"""
-stmt_result = """\select_{Eats.pizza = Serves.pizza}( \select_{Person.name = Eats.name}
-                       (Person \cross Eats) \cross Serves );"""
+stmt = "\select_{Person.name = 'Amy'} \select_{gender = 'f'} \select_{age = 16} Person;"
+stmt_result = "\select_{Person.name = 'Amy' and gender = 'f' and age = 16} Person;"
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
-# print(ra)
-# print(ra_result)
-# print('yup')
+print('input')
+print(ra)
+print('expected')
+print(ra_result)
+print('-' * 10)
 
 
 def input_one_table(ra):
     return str(ra).count('\\cross') == 0
+
+
+def select_number(ra):
+    return str(ra).count('\\select')
 
 
 def break_select(ra):
@@ -94,6 +98,7 @@ def split_selection_cross(ra):
 
     return list_selection_cond, cross_list
 
+
 def push_down_selections(ra, dd):
     list_selection_cond, cross_list = split_selection_cross(ra)
     remaining_selection_list = []
@@ -139,14 +144,63 @@ def rule_push_down_selections(ra, dd):
         return push_down_selections(ra, dd)
 
 
+def merge_select(select_object):
+    valEcprBinaryOp_list = [select_object.cond]
+    test_select = select_object.inputs[0]
+    if not isinstance(test_select, radb.ast.Select):  # it is a simple select then
+        return select_object
+
+    while (isinstance(test_select.inputs[0], radb.ast.Select)):
+        valEcprBinaryOp_list.append(test_select.cond)
+        test_select = test_select.inputs[0]
+
+    valEcprBinaryOp_list.append(test_select.cond)
+    n = len(valEcprBinaryOp_list)
+    res = valEcprBinaryOp_list[0]
+    for i in range(1, n):
+        res = radb.ast.ValExprBinaryOp(res, radb.ast.sym.AND, valEcprBinaryOp_list[i])
+
+    return radb.ast.Select(cond=res, input=test_select.inputs[0])
+
+
+def extract_cross_select(ra):
+    cross_select_list = [ra.inputs[1]]
+    test_cross = ra.inputs[0]
+    while (isinstance(test_cross, radb.ast.Cross)):
+        cross_select_list.append(test_cross.inputs[1])
+        test_cross = test_cross.inputs[0]
+    cross_select_list.append(test_cross)
+
+    return cross_select_list
+
+
 def rule_merge_selections(ra):
-    pass
+    if select_number(ra) == 1:
+        return ra
+    if isinstance(ra,radb.ast.Select):
+        return merge_select(ra)
+    if isinstance(ra, radb.ast.Cross):
+        L = extract_cross_select(ra)
+        selections = [merge_select(s) for s in L]
+        n = len(selections)
+        res = selections[-1]
+        for i in range(n-2,-1,-1):
+            res = radb.ast.Cross(res,selections[i])
+        return res
 
 
-def rule_introduce_joins(ra):
-    pass
 
 
+print(rule_merge_selections(ra))
+
+# def rule_introduce_joins(ra):
+#     pass
+#
+# print('result')
+# merge = rule_merge_selections(ra)
+# print(merge)
+# res = merge_select(ra)
+# print(res)
 # cross_object = radb.parse.one_statement_from_string("(((Person \cross Eats) \cross Serves) \cross frequences);")
 # L = cross_tolist(cross_object)
 # s, c = split_selection_cross(ra)
