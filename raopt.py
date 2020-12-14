@@ -147,7 +147,7 @@ def rule_push_down_selections(ra, dd):
 def merge_select(select_object):
     valEcprBinaryOp_list = [select_object.cond]
     test_select = select_object.inputs[0]
-    if not isinstance(test_select, radb.ast.Select):  # it is a simple select then
+    if not isinstance(test_select, (radb.ast.Select,radb.ast.RelRef)):  # it is a simple select or just a table
         return select_object
 
     while (isinstance(test_select.inputs[0], radb.ast.Select)):
@@ -173,6 +173,15 @@ def extract_cross_select(ra):
 
     return cross_select_list
 
+def rule_merge_selections_cross(ra):
+    L = extract_cross_select(ra)
+    selections = [merge_select(s) if isinstance(s,radb.ast.Select) else s for s in L ]
+    n = len(selections)
+    res = selections[-1]
+    for i in range(n - 2, -1, -1):
+        res = radb.ast.Cross(res, selections[i])
+    return res
+
 
 def rule_merge_selections(ra):
     if select_number(ra) == 1:
@@ -180,13 +189,14 @@ def rule_merge_selections(ra):
     if isinstance(ra,radb.ast.Select):
         return merge_select(ra)
     if isinstance(ra, radb.ast.Cross):
-        L = extract_cross_select(ra)
-        selections = [merge_select(s) for s in L]
-        n = len(selections)
-        res = selections[-1]
-        for i in range(n-2,-1,-1):
-            res = radb.ast.Cross(res,selections[i])
-        return res
+        return rule_merge_selections_cross(ra)
+    if isinstance(ra,radb.ast.Project):
+        if isinstance(ra.inputs[0],radb.ast.Select):
+            return radb.ast.Project(attrs=ra.attrs,input=merge_select(ra.inputs[0]))
+        elif isinstance(ra.inputs[0], radb.ast.Cross):
+            return radb.ast.Project(attrs=ra.attrs, input=rule_merge_selections_cross(ra.inputs[0]))
+
+
 
 
 
