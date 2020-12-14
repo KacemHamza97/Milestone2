@@ -10,16 +10,20 @@ dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
 
-stmt = "\select_{Person.name = 'Amy'} \select_{gender = 'f'} \select_{age = 16} Person;"
-stmt_result = "\select_{Person.name = 'Amy' and gender = 'f' and age = 16} Person;"
+stmt = """((\select_{Person.name = 'Amy'} \select_{gender = 'f'} \select_{age = 16} Person) 
+                            \cross (\select_{Eats.name = 'Amy'} \select_{pizza = 'mushroom'} Eats))
+                            \cross (\select_{pizzeria = 'Pizza Hut'} Serves);"""
+stmt_result = """((\select_{Person.name = 'Amy' and gender = 'f' and age = 16} Person) 
+                            \cross (\select_{Eats.name = 'Amy' and pizza = 'mushroom'} Eats))
+                            \cross (\select_{pizzeria = 'Pizza Hut'} Serves);"""
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
-print('input')
-print(ra)
-print('expected')
-print(ra_result)
-print('-' * 10)
+# print('input')
+# print(ra)
+# print('expected')
+# print(ra_result)
+# print('-' * 10)
 
 
 def input_one_table(ra):
@@ -145,9 +149,13 @@ def rule_push_down_selections(ra, dd):
 
 
 def merge_select(select_object):
+
+    if isinstance(select_object, radb.ast.RelRef):  # it is a simple select or just a table
+        return select_object
+
     valEcprBinaryOp_list = [select_object.cond]
     test_select = select_object.inputs[0]
-    if not isinstance(test_select, (radb.ast.Select,radb.ast.RelRef)):  # it is a simple select or just a table
+    if isinstance(test_select, radb.ast.RelRef):  # it is a simple select or just a table
         return select_object
 
     while (isinstance(test_select.inputs[0], radb.ast.Select)):
@@ -173,9 +181,10 @@ def extract_cross_select(ra):
 
     return cross_select_list
 
+
 def rule_merge_selections_cross(ra):
     L = extract_cross_select(ra)
-    selections = [merge_select(s) if isinstance(s,radb.ast.Select) else s for s in L ]
+    selections = [merge_select(s) if isinstance(s, radb.ast.Select) else s for s in L]
     n = len(selections)
     res = selections[-1]
     for i in range(n - 2, -1, -1):
@@ -186,22 +195,16 @@ def rule_merge_selections_cross(ra):
 def rule_merge_selections(ra):
     if select_number(ra) == 1:
         return ra
-    if isinstance(ra,radb.ast.Select):
+    if isinstance(ra, radb.ast.Select):
         return merge_select(ra)
     if isinstance(ra, radb.ast.Cross):
         return rule_merge_selections_cross(ra)
-    if isinstance(ra,radb.ast.Project):
-        if isinstance(ra.inputs[0],radb.ast.Select):
-            return radb.ast.Project(attrs=ra.attrs,input=merge_select(ra.inputs[0]))
+    if isinstance(ra, radb.ast.Project):
+        if isinstance(ra.inputs[0], radb.ast.Select):
+            return radb.ast.Project(attrs=ra.attrs, input=merge_select(ra.inputs[0]))
         elif isinstance(ra.inputs[0], radb.ast.Cross):
             return radb.ast.Project(attrs=ra.attrs, input=rule_merge_selections_cross(ra.inputs[0]))
 
-
-
-
-
-
-print(rule_merge_selections(ra))
 
 # def rule_introduce_joins(ra):
 #     pass
