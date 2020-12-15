@@ -10,19 +10,19 @@ dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
 
-stmt = """\project_{P.name, E.pizza} (\select_{P.name = E.name}
-                       ((\\rename_{P: *} Person) \cross (\\rename_{E: *} Eats)));"""
-stmt_result = """\project_{P.name, E.pizza} ((\\rename_{P: *} Person) \join_{P.name = E.name}
-                       (\\rename_{E: *} Eats));"""
+stmt = """\project_{Person.name} \select_{Eats.pizza = Serves.pizza and Person.name = Eats.name}
+                       ((Person \cross Eats) \cross Serves);"""
+stmt_result = """\project_{Person.name} ((Person \join_{Person.name = Eats.name} Eats)
+                       \join_{Eats.pizza = Serves.pizza} Serves);"""
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
-# print(ra)
-# print('-' * 100)
-# print(ra_result)
-# print('-' * 100)
-# print(' ')
-# print(' ')
+print(ra)
+print('-' * 100)
+print(ra_result)
+print('-' * 100)
+print(' ')
+print(' ')
 
 
 def input_one_table(ra):
@@ -31,6 +31,9 @@ def input_one_table(ra):
 
 def select_number(ra):
     return str(ra).count('\\select')
+
+def cross_number(ra):
+    return str(ra).count('\\cross')
 
 
 def break_select(ra):
@@ -89,8 +92,22 @@ def split_selection_cross(ra):
 
     return list_selection_cond, cross_list
 
+def cross_restraint_pushdown(ra):
+    s,c = split_selection_cross(ra)
+    n = len(s)
+    res = radb.ast.Cross(c[-2],c[-1])
+    res1 = None
+    for i in range(n-1,0,-1):
+        res0 = radb.ast.Select(cond=s[i],input=res)
+        res1 = radb.ast.Cross(res0,c[0])
+
+    return radb.ast.Select(s[0],res1)
+
+
 
 def push_down_selections(ra, dd):
+    if select_number(ra) == cross_number(ra) >= 2:
+        return cross_restraint_pushdown(ra)
     list_selection_cond, cross_list = split_selection_cross(ra)
     remaining_selection_list = []
     cross_res = cross_list[:]
@@ -135,22 +152,26 @@ def merge_select(select_object):
     if isinstance(test_select, radb.ast.RelRef):  # it is a simple select or just a table
         return select_object
 
-    while (isinstance(test_select.inputs[0], radb.ast.Select)):
+    if not isinstance(test_select, radb.ast.Cross):
+
+        while (isinstance(test_select.inputs[0], radb.ast.Select)):
+                valEcprBinaryOp_list.append(test_select.cond)
+                test_select = test_select.inputs[0]
+
         valEcprBinaryOp_list.append(test_select.cond)
-        test_select = test_select.inputs[0]
+        n = len(valEcprBinaryOp_list)
+        res = valEcprBinaryOp_list[0]
+        for i in range(1, n):
+            res = radb.ast.ValExprBinaryOp(res, radb.ast.sym.AND, valEcprBinaryOp_list[i])
 
-    valEcprBinaryOp_list.append(test_select.cond)
-    n = len(valEcprBinaryOp_list)
-    res = valEcprBinaryOp_list[0]
-    for i in range(1, n):
-        res = radb.ast.ValExprBinaryOp(res, radb.ast.sym.AND, valEcprBinaryOp_list[i])
-
-    return radb.ast.Select(cond=res, input=test_select.inputs[0])
-
+        return radb.ast.Select(cond=res, input=test_select.inputs[0])
+    else:
+        return radb.ast.Select(cond=valEcprBinaryOp_list[0], input=test_select)
 
 def extract_cross_select(ra):
     cross_select_list = [ra.inputs[1]]
     test_cross = ra.inputs[0]
+
     while (isinstance(test_cross, radb.ast.Cross)):
         cross_select_list.append(test_cross.inputs[1])
         test_cross = test_cross.inputs[0]
@@ -229,14 +250,16 @@ def rule_introduce_joins(ra):
         return joint_r(ra)
 
 
-# b = rule_break_up_selections(ra)
-# print(b)
-# print('-' * 100)
-# s = rule_push_down_selections(b, dd)
-# print(s)
-# print('-' * 100)
-# m = rule_merge_selections(s)
-# print(m)
-# print('-' * 100)
-# L = rule_introduce_joins(m)
-# print(L)
+
+
+b = rule_break_up_selections(ra)
+print(b)
+print('-' * 100)
+s = rule_push_down_selections(b, dd)
+print(s)
+print('-' * 100)
+m = rule_merge_selections(s)
+print(m)
+print('-' * 100)
+L = rule_introduce_joins(m)
+print(L)
