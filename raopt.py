@@ -1,4 +1,3 @@
-from pprint import pprint
 import re
 
 import radb
@@ -17,12 +16,12 @@ stmt_result = """\project_{Person.name} ((Person \join_{Person.name = Eats.name}
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
-print(ra)
-print('-' * 100)
-print(ra_result)
-print('-' * 100)
-print(' ')
-print(' ')
+# print(ra)
+# print('-' * 100)
+# print(ra_result)
+# print('-' * 100)
+# print(' ')
+# print(' ')
 
 
 def input_one_table(ra):
@@ -252,14 +251,14 @@ def rule_introduce_joins(ra):
 
 
 
-b = rule_break_up_selections(ra)
-print(b)
-print('-' * 100)
-s = rule_push_down_selections(b, dd)
-print(s)
-print('-' * 100)
-m = rule_merge_selections(s)
-print(m)
-print('-' * 100)
-L = rule_introduce_joins(m)
-print(L)
+# b = rule_break_up_selections(ra)
+# print(b)
+# print('-' * 100)
+# s = rule_push_down_selections(b, dd)
+# print(s)
+# print('-' * 100)
+# m = rule_merge_selections(s)
+# print(m)
+# print('-' * 100)
+# L = rule_introduce_joins(m)
+# print(L)
