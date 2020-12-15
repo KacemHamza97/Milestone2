@@ -10,20 +10,16 @@ dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
 
-stmt = """((\select_{Person.name = 'Amy'} \select_{gender = 'f'} \select_{age = 16} Person) 
-                            \cross (\select_{Eats.name = 'Amy'} \select_{pizza = 'mushroom'} Eats))
-                            \cross (\select_{pizzeria = 'Pizza Hut'} Serves);"""
-stmt_result = """((\select_{Person.name = 'Amy' and gender = 'f' and age = 16} Person) 
-                            \cross (\select_{Eats.name = 'Amy' and pizza = 'mushroom'} Eats))
-                            \cross (\select_{pizzeria = 'Pizza Hut'} Serves);"""
+stmt = "\select_{P.name = Eats.name} ((\\rename_{P: *} Person) \cross Eats);"
+stmt_result = "(\\rename_{P: *} Person) \join_{P.name = Eats.name} Eats;"
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
 # print('input')
-# print(ra)
-# print('expected')
-# print(ra_result)
-# print('-' * 10)
+print(ra)
+print('-' * 100)
+print(ra_result)
+print('-' * 100)
 
 
 def input_one_table(ra):
@@ -149,7 +145,6 @@ def rule_push_down_selections(ra, dd):
 
 
 def merge_select(select_object):
-
     if isinstance(select_object, radb.ast.RelRef):  # it is a simple select or just a table
         return select_object
 
@@ -207,8 +202,29 @@ def rule_merge_selections(ra):
 
 
 def rule_introduce_joins(ra):
-    pass
-#
+    if input_one_table(ra):
+        return ra
+
+
+def joint_recursive(object):
+    if isinstance(object, radb.ast.RelRef):
+        return object
+
+    if isinstance(object.inputs[0], radb.ast.RelRef):
+        return object
+    else:
+        if isinstance(object.inputs[0],radb.ast.Cross):
+            return radb.ast.Join(joint_recursive(object.inputs[0].inputs[0]), object.cond, object.inputs[0].inputs[1])
+        if isinstance(object.inputs[1], radb.ast.RelRef):
+            return radb.ast.Join(joint_recursive(object.inputs[0]), object.cond, object.inputs[1])
+
+
+
+
+
+L = joint_recursive(ra)
+print(L)
+# print(type(L))
 # print('result')
 # merge = rule_merge_selections(ra)
 # print(merge)
