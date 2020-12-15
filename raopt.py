@@ -10,16 +10,19 @@ dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
 
-stmt = "\select_{P.name = Eats.name} ((\\rename_{P: *} Person) \cross Eats);"
-stmt_result = "(\\rename_{P: *} Person) \join_{P.name = Eats.name} Eats;"
+stmt = """\project_{P.name, E.pizza} (\select_{P.name = E.name}
+                       ((\\rename_{P: *} Person) \cross (\\rename_{E: *} Eats)));"""
+stmt_result = """\project_{P.name, E.pizza} ((\\rename_{P: *} Person) \join_{P.name = E.name}
+                       (\\rename_{E: *} Eats));"""
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 
-# print('input')
-print(ra)
-print('-' * 100)
-print(ra_result)
-print('-' * 100)
+# print(ra)
+# print('-' * 100)
+# print(ra_result)
+# print('-' * 100)
+# print(' ')
+# print(' ')
 
 
 def input_one_table(ra):
@@ -52,18 +55,6 @@ def break_select(ra):
     for i in range(1, select_index_number):
         res = (radb.ast.Select(cond=valExpreBinary_list_ra[i], input=res))
     return res
-
-
-def rule_break_up_selections(ra):
-    if isinstance(ra, radb.ast.Select):
-        return break_select(ra)
-    elif isinstance(ra, radb.ast.Project):
-        return radb.ast.Project(attrs=ra.attrs, input=break_select(ra.inputs[0]))
-    elif isinstance(ra, radb.ast.Cross):
-        if isinstance(ra.inputs[0], radb.ast.Select):
-            return radb.ast.Cross(break_select(ra.inputs[0]), ra.inputs[1])
-        elif isinstance(ra.inputs[1], radb.ast.Select):
-            return radb.ast.Cross(ra.inputs[0], break_select(ra.inputs[1]))
 
 
 def clean_query(sql_query):
@@ -119,6 +110,7 @@ def push_down_selections(ra, dd):
 
                 if a:
                     cross_res[i] = radb.ast.Select(cond=s, input=c)
+                    break
     n = len(cross_res)
     c_res = cross_res[1]
     for c in range(2, n):
@@ -132,16 +124,6 @@ def push_down_selections(ra, dd):
     for s in range(len(remaining_selection_list) - 1):
         s_res = radb.ast.Select(remaining_selection_list[s], s_res)
     return s_res
-
-
-def rule_push_down_selections(ra, dd):
-    dd["Frequents"] = {}
-    if input_one_table(ra):
-        return ra
-    elif isinstance(ra, radb.ast.Project):
-        return radb.ast.Project(ra.attrs, push_down_selections(ra.inputs[0], dd))
-    else:
-        return push_down_selections(ra, dd)
 
 
 def merge_select(select_object):
@@ -177,6 +159,43 @@ def extract_cross_select(ra):
     return cross_select_list
 
 
+def joint_r(object):
+    if isinstance(object, radb.ast.RelRef):
+        return object
+
+    if isinstance(object.inputs[0], radb.ast.RelRef):
+        return object
+    else:
+        if isinstance(object.inputs[0], radb.ast.Cross):
+            return radb.ast.Join(joint_r(object.inputs[0].inputs[0]), object.cond, object.inputs[0].inputs[1])
+        if isinstance(object.inputs[1], radb.ast.RelRef):
+            return radb.ast.Join(joint_r(object.inputs[0]), object.cond, object.inputs[1])
+
+
+def rule_break_up_selections(ra):
+    if str(ra).count('and') == 0:
+        return ra
+    if isinstance(ra, radb.ast.Select):
+        return break_select(ra)
+    elif isinstance(ra, radb.ast.Project):
+        return radb.ast.Project(attrs=ra.attrs, input=break_select(ra.inputs[0]))
+    elif isinstance(ra, radb.ast.Cross):
+        if isinstance(ra.inputs[0], radb.ast.Select):
+            return radb.ast.Cross(break_select(ra.inputs[0]), ra.inputs[1])
+        elif isinstance(ra.inputs[1], radb.ast.Select):
+            return radb.ast.Cross(ra.inputs[0], break_select(ra.inputs[1]))
+
+
+def rule_push_down_selections(ra, dd):
+    dd["Frequents"] = {}
+    if input_one_table(ra):
+        return ra
+    elif isinstance(ra, radb.ast.Project):
+        return radb.ast.Project(ra.attrs, push_down_selections(ra.inputs[0], dd))
+    else:
+        return push_down_selections(ra, dd)
+
+
 def rule_merge_selections_cross(ra):
     L = extract_cross_select(ra)
     selections = [merge_select(s) if isinstance(s, radb.ast.Select) else s for s in L]
@@ -204,40 +223,20 @@ def rule_merge_selections(ra):
 def rule_introduce_joins(ra):
     if input_one_table(ra):
         return ra
-
-
-def joint_recursive(object):
-    if isinstance(object, radb.ast.RelRef):
-        return object
-
-    if isinstance(object.inputs[0], radb.ast.RelRef):
-        return object
+    if isinstance(ra, radb.ast.Project):
+        return radb.ast.Project(attrs=ra.attrs, input=joint_r(ra.inputs[0]))
     else:
-        if isinstance(object.inputs[0],radb.ast.Cross):
-            return radb.ast.Join(joint_recursive(object.inputs[0].inputs[0]), object.cond, object.inputs[0].inputs[1])
-        if isinstance(object.inputs[1], radb.ast.RelRef):
-            return radb.ast.Join(joint_recursive(object.inputs[0]), object.cond, object.inputs[1])
+        return joint_r(ra)
 
 
-
-
-
-L = joint_recursive(ra)
-print(L)
-# print(type(L))
-# print('result')
-# merge = rule_merge_selections(ra)
-# print(merge)
-# res = merge_select(ra)
-# print(res)
-# cross_object = radb.parse.one_statement_from_string("(((Person \cross Eats) \cross Serves) \cross frequences);")
-# L = cross_tolist(cross_object)
-# s, c = split_selection_cross(ra)
+# b = rule_break_up_selections(ra)
+# print(b)
+# print('-' * 100)
+# s = rule_push_down_selections(b, dd)
 # print(s)
-# print(c)
-
-# s = rule_push_down_selections(ra, dd)
-# print(s)
-# print(cross)
-# print(type(cross))
-# print('yup')
+# print('-' * 100)
+# m = rule_merge_selections(s)
+# print(m)
+# print('-' * 100)
+# L = rule_introduce_joins(m)
+# print(L)

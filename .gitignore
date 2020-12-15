@@ -135,3 +135,4 @@ test_selection_local.py
 test_push_down_local.py
 test_merge_selection_local.py
 test_intoduce_joint_local.py
+test_all_local.py
