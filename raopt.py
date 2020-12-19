@@ -3,6 +3,20 @@ import radb
 import radb.ast
 import radb.parse
 
+dd = {}
+dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
+dd["Eats"] = {"name": "string", "pizza": "string"}
+dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
+
+stmt = "\select_{age = 16} \select_{Person.name = Eats.name} (Person \cross Eats);"
+stmt_result = "\select_{Person.name = Eats.name} (\select_{age = 16}(Person) \cross Eats);"
+ra = radb.parse.one_statement_from_string(stmt)
+ra_result = radb.parse.one_statement_from_string(stmt_result)
+print(ra)
+print(ra_result)
+print('=' * 100)
+print(' ')
+print(' ')
 
 def input_one_table(ra):
     return str(ra).count('\\cross') == 0
@@ -117,9 +131,15 @@ def replace(table, remaining_list, dd):
                     if a:
                         L.append(cond)
         else:
-            a = dd[table.rel].get(cond.inputs[0].name, False)
-            if a:
-                L.append(cond)
+            if cond.inputs[0].rel == None:
+                a = dd[table.rel].get(cond.inputs[0].name, False)
+                if a:
+                    L.append(cond)
+            elif table.rel == cond.inputs[0].rel:
+                a = dd[table.rel].get(cond.inputs[0].name, False)
+                if a:
+                    L.append(cond)
+
     n = len(L)
     if n == 0:
         return table
@@ -277,3 +297,16 @@ def rule_introduce_joins(ra):
         return radb.ast.Project(attrs=ra.attrs, input=joint_r(ra.inputs[0]))
     else:
         return joint_r(ra)
+
+print('-' * 100)
+b = rule_break_up_selections(ra)
+print(b)
+print('-' * 100)
+p = rule_push_down_selections(b, dd)
+print(p)
+print('-' * 100)
+m = rule_merge_selections(p)
+print(m)
+print('-' * 100)
+L = rule_introduce_joins(m)
+print(L)
