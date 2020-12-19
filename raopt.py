@@ -8,8 +8,8 @@ dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
 dd["Eats"] = {"name": "string", "pizza": "string"}
 dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
 
-stmt = "\select_{age = 16} \select_{Person.name = Eats.name} (Person \cross Eats);"
-stmt_result = "\select_{Person.name = Eats.name} (\select_{age = 16}(Person) \cross Eats);"
+stmt = "\select_{Person.name = Eats.name and Person.name = Eats.pizza and Eats.name = 'Amy'} (Person \cross Eats);"
+stmt_result = "Person \join_{Person.name = Eats.name and Person.name = Eats.pizza} \select_{Eats.name = 'Amy'} Eats;"
 ra = radb.parse.one_statement_from_string(stmt)
 ra_result = radb.parse.one_statement_from_string(stmt_result)
 print(ra)
@@ -17,6 +17,7 @@ print(ra_result)
 print('=' * 100)
 print(' ')
 print(' ')
+
 
 def input_one_table(ra):
     return str(ra).count('\\cross') == 0
@@ -117,6 +118,10 @@ def remaining_select(select_list):
     return [s for s in select_list if not is_cross_select(s)]
 
 
+def is_neither(s):
+    return isinstance(s.inputs[0], radb.ast.AttrRef) and isinstance(s.inputs[1], radb.ast.AttrRef)
+
+
 def replace(table, remaining_list, dd):
     L = []
     for cond in remaining_list:
@@ -152,6 +157,21 @@ def replace(table, remaining_list, dd):
 
         return res
 
+def swap(s):
+    if isinstance(s,radb.ast.Select):
+        if isinstance(s.inputs[0], radb.ast.Select):
+            return radb.ast.Select(s.inputs[0].cond,radb.ast.Select(s.cond,s.inputs[0].inputs[0]))
+
+
+def select_rest(rest_list, input):
+    res = rest_list[0]
+    if len(rest_list) == 1:
+        return radb.ast.Select(res, input)
+    elif len(rest_list) > 1:
+        res = radb.ast.Select(res, input)
+        for i in range(1, len(rest_list)):
+            res = radb.ast.Select(res, rest_list[i])
+
 
 def push_step1(s_cond_list, cross_list):
     if len(s_cond_list) == 0:
@@ -179,12 +199,21 @@ def push_down_rule_selection(ra, dd):
     remaining_s_list = remaining_select(s_cond_list)[::-1]
     s_cond_list = [e for e in s_cond_list if e not in remaining_s_list]
     s_cond_list.sort(key=lambda x: tris(x, cross_list))
-    if len(remaining_s_list) == 0:
+    rest = [e for e in remaining_s_list if is_neither(e)]
+    remaining_s_list = [e for e in remaining_s_list if e not in rest]
+
+    if len(remaining_s_list) == 0 and len(rest) == 0:
         return push_step1(s_cond_list, cross_list)
-    elif len(remaining_s_list) != 0 and len(s_cond_list) == 0:
+    elif len(remaining_s_list) == 0 and len(rest) != 0:
+        return swap(select_rest(rest, push_step1(s_cond_list, cross_list)))
+    elif len(remaining_s_list) != 0 and len(s_cond_list) == 0 and len(rest) == 0:
         return push_step2(remaining_s_list, cross_list, dd)
-    else:
+    elif len(remaining_s_list) != 0 and len(s_cond_list) == 0 and len(rest) != 0:
+        return select_rest(rest, push_step2(remaining_s_list, cross_list, dd))
+    elif len(remaining_s_list) != 0 and len(s_cond_list) != 0 and len(rest) == 0:
         return push_step3(s_cond_list, remaining_s_list, cross_list, dd)
+    elif len(remaining_s_list) != 0 and len(s_cond_list) != 0 and len(rest) != 0:
+        return swap(select_rest(rest,push_step3(s_cond_list, remaining_s_list, cross_list, dd)))
 
 
 def merge_select(select_object):
@@ -297,6 +326,7 @@ def rule_introduce_joins(ra):
         return radb.ast.Project(attrs=ra.attrs, input=joint_r(ra.inputs[0]))
     else:
         return joint_r(ra)
+
 
 print('-' * 100)
 b = rule_break_up_selections(ra)
