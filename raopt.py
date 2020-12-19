@@ -3,24 +3,20 @@ import radb
 import radb.ast
 import radb.parse
 
-dd = {}
-dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
-dd["Eats"] = {"name": "string", "pizza": "string"}
-dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
-
-stmt = "\select_{Person.name = Eats.name and Person.name = Eats.pizza and Eats.name = 'Amy'} (Person \cross Eats);"
-stmt_result = "Person \join_{Person.name = Eats.name and Person.name = Eats.pizza} \select_{Eats.name = 'Amy'} Eats;"
-ra = radb.parse.one_statement_from_string(stmt)
-ra_result = radb.parse.one_statement_from_string(stmt_result)
-print(ra)
-print(ra_result)
-print('=' * 100)
-print(' ')
-print(' ')
-
-
-def input_one_table(ra):
-    return str(ra).count('\\cross') == 0
+# dd = {}
+# dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
+# dd["Eats"] = {"name": "string", "pizza": "string"}
+# dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
+#
+# stmt = "\select_{Person.name = Eats.name and Person.name = Eats.pizza and Eats.name = 'Amy'} (Person \cross Eats);"
+# stmt_result = "Person \join_{Person.name = Eats.name and Person.name = Eats.pizza} \select_{Eats.name = 'Amy'} Eats;"
+# ra = radb.parse.one_statement_from_string(stmt)
+# ra_result = radb.parse.one_statement_from_string(stmt_result)
+# print(ra)
+# print(ra_result)
+# print('=' * 100)
+# print(' ')
+# print(' ')
 
 
 def select_number(ra):
@@ -36,6 +32,7 @@ def joint_number(ra):
 
 
 def tris(x, cross_list):
+    """this function is used to sort the conditions with the same order as the cross tables order"""
     cross_list_name = [x.rel if isinstance(x, radb.ast.RelRef) else x.relname for x in cross_list]
     x1 = cross_list_name.index(x.inputs[0].rel)
     x2 = cross_list_name.index(x.inputs[1].rel)
@@ -44,7 +41,6 @@ def tris(x, cross_list):
 
 def break_select(ra):
     """ Breaks up Complex selection into simple selection operations."""
-
     # valExpreBinary_list_ra will contain all the valExprBinaryOp objects in the right order.
     valExpreBinary_list_ra = [ra.cond.inputs[1]]
     inputs_0 = ra.cond.inputs[0]
@@ -67,10 +63,12 @@ def break_select(ra):
 
 
 def clean_query(sql_query):
+    """this function eliminates extra whitespaces"""
     return re.sub("\s\s+", " ", sql_query).strip()
 
 
 def cross_tolist(cross_object):
+    """this function returns a list containing the tables from a cross object"""
     cross_object_list = [cross_object.inputs[1]]
     test_cross = cross_object.inputs[0]
     if not isinstance(test_cross, radb.ast.Cross):
@@ -84,6 +82,7 @@ def cross_tolist(cross_object):
 
 
 def extract_cross_select(ra):
+    """this function returns a list containing the select_objects inside a cross object(s)"""
     cross_select_list = [ra.inputs[1]]
     test_cross = ra.inputs[0]
 
@@ -95,7 +94,20 @@ def extract_cross_select(ra):
     return cross_select_list
 
 
+def rule_merge_selections_cross(ra):
+    """this function merge the select_objects inside the cross_object(s)"""
+    L = extract_cross_select(ra)
+    selections = [merge_select(s) if isinstance(s, radb.ast.Select) else s for s in L]
+    n = len(selections)
+    res = selections[-1]
+    for i in range(n - 2, -1, -1):
+        res = radb.ast.Cross(res, selections[i])
+    return res
+
+
 def split_selection_cross(ra):
+    """this function returns: list of select_conditions and a list of
+            tables (inside a cross object) in the form of a tuple"""
     cross_list = []
     list_selection_cond = [ra.cond]
     test_cross = ra.inputs[0]
@@ -110,19 +122,26 @@ def split_selection_cross(ra):
 
 
 def is_cross_select(s):
+    """this function returns True if both terms of a select_condition are AttRef
+                and have the same attribute name (T.name) else False"""
     return isinstance(s.inputs[0], radb.ast.AttrRef) and isinstance(s.inputs[1], radb.ast.AttrRef) and s.inputs[
         0].name == s.inputs[1].name
 
 
 def remaining_select(select_list):
+    """returns the select_conditions that are not pushed down"""
     return [s for s in select_list if not is_cross_select(s)]
 
 
 def is_neither(s):
+    """used to extract select_conditions that are not pushed_down and that
+        are not used in push_step1 and push_step2 functions"""
     return isinstance(s.inputs[0], radb.ast.AttrRef) and isinstance(s.inputs[1], radb.ast.AttrRef)
 
 
 def replace(table, remaining_list, dd):
+    """this function used to replace table with the suitable select_obj
+                    while parsing the ra object recursiely"""
     L = []
     for cond in remaining_list:
         if isinstance(table, radb.ast.Rename):
@@ -157,13 +176,16 @@ def replace(table, remaining_list, dd):
 
         return res
 
+
 def swap(s):
-    if isinstance(s,radb.ast.Select):
+    """swap two consecutive selections"""
+    if isinstance(s, radb.ast.Select):
         if isinstance(s.inputs[0], radb.ast.Select):
-            return radb.ast.Select(s.inputs[0].cond,radb.ast.Select(s.cond,s.inputs[0].inputs[0]))
+            return radb.ast.Select(s.inputs[0].cond, radb.ast.Select(s.cond, s.inputs[0].inputs[0]))
 
 
 def select_rest(rest_list, input):
+    """used to add the is_neither(select) selections"""
     res = rest_list[0]
     if len(rest_list) == 1:
         return radb.ast.Select(res, input)
@@ -174,12 +196,14 @@ def select_rest(rest_list, input):
 
 
 def push_step1(s_cond_list, cross_list):
+    """push only the select_objects used for the cross between tables"""
     if len(s_cond_list) == 0:
         return cross_list[0]
     return radb.ast.Select(s_cond_list[0], radb.ast.Cross(push_step1(s_cond_list[1:], cross_list[1:]), cross_list[0]))
 
 
 def push_step2(remaining_list, cross_list, dd):
+    """push the select_objects that are not used for the cross"""
     if len(cross_list) == 1:
         return replace(cross_list[0], remaining_list, dd)
     return radb.ast.Cross(push_step2(remaining_list, cross_list[1:], dd), replace(
@@ -187,6 +211,8 @@ def push_step2(remaining_list, cross_list, dd):
 
 
 def push_step3(s_cond_list, remaining_list, cross_list, dd):
+    """push_step1 and push_step2 combined(problem python doesn't use referencing so
+                I am obliged to recreate and return another object"""
     if len(cross_list) == 1:
         return replace(cross_list[0], remaining_list, dd)
     return radb.ast.Select(s_cond_list[0],
@@ -195,6 +221,7 @@ def push_step3(s_cond_list, remaining_list, cross_list, dd):
 
 
 def push_down_rule_selection(ra, dd):
+    """used to push_down selections"""
     s_cond_list, cross_list = split_selection_cross(ra)
     remaining_s_list = remaining_select(s_cond_list)[::-1]
     s_cond_list = [e for e in s_cond_list if e not in remaining_s_list]
@@ -213,10 +240,11 @@ def push_down_rule_selection(ra, dd):
     elif len(remaining_s_list) != 0 and len(s_cond_list) != 0 and len(rest) == 0:
         return push_step3(s_cond_list, remaining_s_list, cross_list, dd)
     elif len(remaining_s_list) != 0 and len(s_cond_list) != 0 and len(rest) != 0:
-        return swap(select_rest(rest,push_step3(s_cond_list, remaining_s_list, cross_list, dd)))
+        return swap(select_rest(rest, push_step3(s_cond_list, remaining_s_list, cross_list, dd)))
 
 
 def merge_select(select_object):
+    """merge select_objects"""
     if isinstance(select_object, radb.ast.RelRef):  # it is a simple select or just a table
         return select_object
 
@@ -243,6 +271,7 @@ def merge_select(select_object):
 
 
 def joint_r(object):
+    """joint function"""
     if isinstance(object, radb.ast.RelRef):
         return object
     if isinstance(object.inputs[0], radb.ast.Rename):
@@ -257,17 +286,8 @@ def joint_r(object):
             return radb.ast.Join(joint_r(object.inputs[0]), object.cond, object.inputs[1])
 
 
-def rule_merge_selections_cross(ra):
-    L = extract_cross_select(ra)
-    selections = [merge_select(s) if isinstance(s, radb.ast.Select) else s for s in L]
-    n = len(selections)
-    res = selections[-1]
-    for i in range(n - 2, -1, -1):
-        res = radb.ast.Cross(res, selections[i])
-    return res
-
-
 def rule_break_up_selections(ra):
+    """break_up selections function"""
     if isinstance(ra, radb.ast.RelRef):
         return ra
     if str(ra).count('and') == 0:
@@ -284,10 +304,11 @@ def rule_break_up_selections(ra):
 
 
 def rule_push_down_selections(ra, dd):
+    """push_down selections function """
     dd["Frequents"] = {}
     if isinstance(ra, radb.ast.RelRef):
         return ra
-    if input_one_table(ra):
+    if cross_number(ra) == 0:
         return ra
     elif isinstance(ra, radb.ast.Project):
         return radb.ast.Project(ra.attrs, push_down_rule_selection(ra.inputs[0], dd))
@@ -298,6 +319,7 @@ def rule_push_down_selections(ra, dd):
 
 
 def rule_merge_selections(ra):
+    """merge selections function"""
     if isinstance(ra, radb.ast.RelRef):
         return ra
     if select_number(ra) == 1:
@@ -314,9 +336,10 @@ def rule_merge_selections(ra):
 
 
 def rule_introduce_joins(ra):
+    """join introduce function"""
     if isinstance(ra, radb.ast.RelRef):
         return ra
-    if input_one_table(ra):
+    if cross_number(ra) == 0:
         return ra
     if select_number(ra) == 0:
         return ra
@@ -327,16 +350,16 @@ def rule_introduce_joins(ra):
     else:
         return joint_r(ra)
 
-
-print('-' * 100)
-b = rule_break_up_selections(ra)
-print(b)
-print('-' * 100)
-p = rule_push_down_selections(b, dd)
-print(p)
-print('-' * 100)
-m = rule_merge_selections(p)
-print(m)
-print('-' * 100)
-L = rule_introduce_joins(m)
-print(L)
+#### Test ####
+# print('-' * 100)
+# b = rule_break_up_selections(ra)
+# print(b)
+# print('-' * 100)
+# p = rule_push_down_selections(b, dd)
+# print(p)
+# print('-' * 100)
+# m = rule_merge_selections(p)
+# print(m)
+# print('-' * 100)
+# L = rule_introduce_joins(m)
+# print(L)
