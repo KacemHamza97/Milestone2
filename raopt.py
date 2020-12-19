@@ -3,23 +3,6 @@ import radb
 import radb.ast
 import radb.parse
 
-dd = {}
-dd["Person"] = {"name": "string", "age": "integer", "gender": "string"}
-dd["Eats"] = {"name": "string", "pizza": "string"}
-dd["Serves"] = {"pizzeria": "string", "pizza": "string", "price": "integer"}
-
-stmt = "\select_{Person.name = Eats.name and Person.name = Eats.pizza} (Person \cross Eats);"
-stmt_result = "Person \join_{Person.name = Eats.name and Person.name = Eats.pizza} Eats;"
-ra = radb.parse.one_statement_from_string(stmt)
-ra_result = radb.parse.one_statement_from_string(stmt_result)
-
-print(ra)
-print('-' * 100)
-print(ra_result)
-print('-' * 100)
-print(' ')
-print(' ')
-
 
 def input_one_table(ra):
     return str(ra).count('\\cross') == 0
@@ -69,8 +52,6 @@ def break_select(ra):
 
 
 def clean_query(sql_query):
-    """removes all successive whitespaces >2 and replace them with one whitespace.
-        also it removes the white spaces at the start and at the end of the sql_query"""
     return re.sub("\s\s+", " ", sql_query).strip()
 
 
@@ -173,9 +154,6 @@ def push_step3(s_cond_list, remaining_list, cross_list, dd):
                                cross_list[0], remaining_list, dd)))
 
 
-# 2éme replace té5dem martin
-
-
 def push_down_rule_selection(ra, dd):
     s_cond_list, cross_list = split_selection_cross(ra)
     remaining_s_list = remaining_select(s_cond_list)[::-1]
@@ -228,21 +206,6 @@ def joint_r(object):
             return radb.ast.Join(joint_r(object.inputs[0].inputs[0]), object.cond, object.inputs[0].inputs[1])
         if isinstance(object.inputs[1], radb.ast.RelRef):
             return radb.ast.Join(joint_r(object.inputs[0]), object.cond, object.inputs[1])
-
-
-# def joint_f(object):
-#     res = joint_r(object)
-#     try:
-#         s1 = res.inputs[0]
-#         s2 = res.inputs[1]
-#         bool = isinstance(res, radb.ast.Join) and isinstance(s1, radb.ast.Select) and isinstance(s2, radb.ast.Select) and s1.cond == s2.cond and joint_number(res) == 1
-#         if bool:
-#             return radb.ast.Join(res.inputs[0].inputs[0],
-#                                  radb.ast.ValExprBinaryOp(res.cond, radb.ast.sym.AND, res.inputs[0].cond),
-#                                  res.inputs[1].inputs[0])
-#     except:
-#         return res
-
 
 
 def rule_merge_selections_cross(ra):
@@ -314,16 +277,3 @@ def rule_introduce_joins(ra):
         return radb.ast.Project(attrs=ra.attrs, input=joint_r(ra.inputs[0]))
     else:
         return joint_r(ra)
-
-
-b = rule_break_up_selections(ra)
-print(b)
-print('-' * 100)
-p = rule_push_down_selections(b, dd)
-print(p)
-print('-' * 100)
-m = rule_merge_selections(p)
-print(m)
-print('-' * 100)
-L = rule_introduce_joins(m)
-print(L)
