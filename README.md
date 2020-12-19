@@ -23,11 +23,9 @@ compares attributes of R 1 and R 2 . <br>
 
 
 ## useful links for inderstanding referencing in python
-Parameter Passing for Mutable & Immutable Objects: <br>
-<p>This demonstrates <a href="http://google.com/" title="Pandoc-style short links">Google</a>, where the link text is
-omitted.
+<p>Parameter Passing for Mutable & Immutable Objects:<a href="https://medium.com/@tyastropheus/tricky-python-ii-parameter-passing-for-mutable-immutable-objects-10e968cbda35">Link >> </a>
 </p>
-https://medium.com/@tyastropheus/tricky-python-ii-parameter-passing-for-mutable-immutable-objects-10e968cbda35
+
 
 Memory Management for Mutable & Immutable Objects: <br>
 https://medium.com/@tyastropheus/tricky-python-i-memory-management-for-mutable-immutable-objects-21507d1e5b95
