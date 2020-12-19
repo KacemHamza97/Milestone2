@@ -20,3 +20,11 @@ dictionary recording the name and attributes of each relation). <br>
 Rule 4: describes how a selection and a cross product may be merged into a theta
 join, provided that the selection predicate is a join condition. This is the case if it
 compares attributes of R 1 and R 2 . <br>
+
+
+## useful links for inderstanding referencing in python
+Parameter Passing for Mutable & Immutable Objects: <br>
+https://medium.com/@tyastropheus/tricky-python-ii-parameter-passing-for-mutable-immutable-objects-10e968cbda35
+
+Memory Management for Mutable & Immutable Objects: <br>
+https://medium.com/@tyastropheus/tricky-python-i-memory-management-for-mutable-immutable-objects-21507d1e5b95
