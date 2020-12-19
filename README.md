@@ -22,10 +22,10 @@ join, provided that the selection predicate is a join condition. This is the cas
 compares attributes of R 1 and R 2 . <br>
 
 
-## useful links for inderstanding referencing in python
-<p>Parameter Passing for Mutable & Immutable Objects:<a href="https://medium.com/@tyastropheus/tricky-python-ii-parameter-passing-for-mutable-immutable-objects-10e968cbda35">Link >> </a>
+## Useful links for Understanding referencing in python
+<p>Parameter Passing for Mutable & Immutable Objects:<a href="https://medium.com/@tyastropheus/tricky-python-ii-parameter-passing-for-mutable-immutable-objects-10e968cbda35"> Link >> </a>
 </p>
-
-
-Memory Management for Mutable & Immutable Objects: <br>
-https://medium.com/@tyastropheus/tricky-python-i-memory-management-for-mutable-immutable-objects-21507d1e5b95
+<br>
+<p>Memory Management for Mutable & Immutable Objects:<a href="https://medium.com/@tyastropheus/tricky-python-i-memory-management-for-mutable-immutable-objects-21507d1e5b95"> Link >> </a>
+</p>
+ 
