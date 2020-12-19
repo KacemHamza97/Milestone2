@@ -25,7 +25,6 @@ compares attributes of R 1 and R 2 . <br>
 ## Useful links for Understanding referencing in python
 <p>Parameter Passing for Mutable & Immutable Objects:<a href="https://medium.com/@tyastropheus/tricky-python-ii-parameter-passing-for-mutable-immutable-objects-10e968cbda35"> Link >> </a>
 </p>
-<br>
 <p>Memory Management for Mutable & Immutable Objects:<a href="https://medium.com/@tyastropheus/tricky-python-i-memory-management-for-mutable-immutable-objects-21507d1e5b95"> Link >> </a>
 </p>
  
