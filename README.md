@@ -4,7 +4,7 @@ the Milestone 2 takes a relational algebra query, which is the output of Milesto
 optimization of relational algebra query.<br>
 
 
-![ScreenShot](https://{url})
+![ScreenShot](https://github.com/KacemHamza97/Milestone2/blob/main/images/optimization_rules.png)
 
 Rule 1: states that a conjunction in a selection predicate may be broken into several
 nested selections. At the same time, nested selections may be merged into a single
